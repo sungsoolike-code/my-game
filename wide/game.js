@@ -49,6 +49,250 @@ const DIFFICULTY = {
   },
 };
 
+// ---------- 음악 트랙 목록 ----------
+const MUSIC_TRACKS = [
+  'music/Crossing_the_Great_Pass.mp3',
+  'music/nice day rest (1).mp3',
+  'music/nice day rest (3).mp3',
+  'music/peace in space (2).mp3',
+  'music/peace in space.mp3',
+  'music/play with friends.mp3',
+  'music/running on desert.mp3',
+  'music/space journey (1).mp3',
+  'music/space journey.mp3',
+  'music/storm in the galaxy.mp3',
+  'music/storm of the moon.mp3',
+];
+
+// ---------- 글로벌 설정 (씬 간 공유) ----------
+const SETTINGS = {
+  soundOn: true,
+  musicOn: true,
+};
+
+// ============================================================
+//  SFX — Web Audio API 기반 효과음 생성
+// ============================================================
+const SFX = {
+  _ctx: null,
+  _getCtx() {
+    if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return this._ctx;
+  },
+
+  // 적 사망: 짧고 부드러운 "퍅"
+  enemyDeath() {
+    if (!SETTINGS.soundOn) return;
+    const ctx = this._getCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  },
+
+  // 폭탄 폭발: 묵직한 "쾅"
+  bombExplode() {
+    if (!SETTINGS.soundOn) return;
+    const ctx = this._getCtx();
+    // 노이즈 버스트
+    const bufferSize = ctx.sampleRate * 0.3;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.15, ctx.currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(600, ctx.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.3);
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(ctx.currentTime);
+    noise.stop(ctx.currentTime + 0.3);
+    // 저음 베이스
+    const osc = ctx.createOscillator();
+    const oscGain = ctx.createGain();
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.35);
+    oscGain.gain.setValueAtTime(0.2, ctx.currentTime);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.35);
+  },
+
+  // 플레이어 피격
+  playerHit() {
+    if (!SETTINGS.soundOn) return;
+    const ctx = this._getCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.1);
+  },
+};
+
+// ============================================================
+//  MusicManager — 음악 로테이션 관리
+// ============================================================
+const MusicManager = {
+  _scene: null,
+  _tracks: [],
+  _currentIndex: -1,
+  _currentSound: null,
+  _shuffled: [],
+  _loaded: false,
+
+  init(scene) {
+    this._scene = scene;
+    if (this._loaded) return;
+    this._loaded = true;
+    this._shuffled = [...MUSIC_TRACKS].sort(() => Math.random() - 0.5);
+  },
+
+  play() {
+    if (!SETTINGS.musicOn || !this._scene) return;
+    if (this._currentSound && this._currentSound.isPlaying) return;
+    this._playNext();
+  },
+
+  _playNext() {
+    if (!SETTINGS.musicOn) return;
+    this._currentIndex = (this._currentIndex + 1) % this._shuffled.length;
+    const key = 'music_' + this._currentIndex;
+    const scene = this._scene;
+
+    if (!scene.cache.audio.exists(key)) {
+      scene.load.audio(key, this._shuffled[this._currentIndex]);
+      scene.load.once('complete', () => {
+        this._startTrack(scene, key);
+      });
+      scene.load.start();
+    } else {
+      this._startTrack(scene, key);
+    }
+  },
+
+  _startTrack(scene, key) {
+    if (this._currentSound) {
+      this._currentSound.stop();
+      this._currentSound.destroy();
+    }
+    this._currentSound = scene.sound.add(key, { volume: 0.3 });
+    this._currentSound.once('complete', () => {
+      this._playNext();
+    });
+    if (SETTINGS.musicOn) {
+      this._currentSound.play();
+    }
+  },
+
+  stop() {
+    if (this._currentSound && this._currentSound.isPlaying) {
+      this._currentSound.stop();
+    }
+  },
+
+  toggle(on) {
+    SETTINGS.musicOn = on;
+    if (on) {
+      this.play();
+    } else {
+      this.stop();
+    }
+  },
+
+  updateScene(scene) {
+    this._scene = scene;
+  },
+};
+
+// ============================================================
+//  설정 UI 헬퍼 (메뉴/일시정지 공용)
+// ============================================================
+function createSettingsPanel(scene, cx, cy, els, onBack) {
+  const panelBg = scene.add.rectangle(cx, cy, 380, 300, 0x111133, 0.95)
+    .setStrokeStyle(2, 0x4444aa).setScrollFactor(0).setDepth(400);
+  els.push(panelBg);
+
+  const title = scene.add.text(cx, cy - 110, 'SETTINGS', {
+    fontSize: '28px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(401);
+  els.push(title);
+
+  // Sound 토글
+  const soundLabel = scene.add.text(cx - 120, cy - 50, 'SOUND', {
+    fontSize: '20px', fill: '#cccccc', fontFamily: 'monospace',
+  }).setScrollFactor(0).setDepth(401);
+  els.push(soundLabel);
+
+  const soundBtn = scene.add.rectangle(cx + 80, cy - 42, 100, 36, SETTINGS.soundOn ? 0x44aa44 : 0x664444)
+    .setStrokeStyle(1, 0x888888).setScrollFactor(0).setDepth(401)
+    .setInteractive({ useHandCursor: true });
+  const soundBtnText = scene.add.text(cx + 80, cy - 42, SETTINGS.soundOn ? 'ON' : 'OFF', {
+    fontSize: '18px', fill: '#ffffff', fontFamily: 'monospace',
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(402);
+  els.push(soundBtn, soundBtnText);
+
+  soundBtn.on('pointerdown', () => {
+    SETTINGS.soundOn = !SETTINGS.soundOn;
+    soundBtn.setFillStyle(SETTINGS.soundOn ? 0x44aa44 : 0x664444);
+    soundBtnText.setText(SETTINGS.soundOn ? 'ON' : 'OFF');
+  });
+
+  // Music 토글
+  const musicLabel = scene.add.text(cx - 120, cy + 10, 'MUSIC', {
+    fontSize: '20px', fill: '#cccccc', fontFamily: 'monospace',
+  }).setScrollFactor(0).setDepth(401);
+  els.push(musicLabel);
+
+  const musicBtn = scene.add.rectangle(cx + 80, cy + 18, 100, 36, SETTINGS.musicOn ? 0x44aa44 : 0x664444)
+    .setStrokeStyle(1, 0x888888).setScrollFactor(0).setDepth(401)
+    .setInteractive({ useHandCursor: true });
+  const musicBtnText = scene.add.text(cx + 80, cy + 18, SETTINGS.musicOn ? 'ON' : 'OFF', {
+    fontSize: '18px', fill: '#ffffff', fontFamily: 'monospace',
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(402);
+  els.push(musicBtn, musicBtnText);
+
+  musicBtn.on('pointerdown', () => {
+    SETTINGS.musicOn = !SETTINGS.musicOn;
+    musicBtn.setFillStyle(SETTINGS.musicOn ? 0x44aa44 : 0x664444);
+    musicBtnText.setText(SETTINGS.musicOn ? 'ON' : 'OFF');
+    MusicManager.toggle(SETTINGS.musicOn);
+  });
+
+  // 뒤로가기
+  const backBg = scene.add.rectangle(cx, cy + 90, 200, 44, 0x444466)
+    .setScrollFactor(0).setDepth(401).setInteractive({ useHandCursor: true });
+  const backLabel = scene.add.text(cx, cy + 90, '뒤로', {
+    fontSize: '20px', fill: '#ffffff', fontFamily: 'monospace',
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(402);
+  els.push(backBg, backLabel);
+  backBg.on('pointerover', () => backBg.setFillStyle(0x6666aa));
+  backBg.on('pointerout', () => backBg.setFillStyle(0x444466));
+  backBg.on('pointerdown', onBack);
+}
+
 // ============================================================
 //  MenuScene
 // ============================================================
@@ -57,6 +301,11 @@ class MenuScene extends Phaser.Scene {
 
   create() {
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
+
+    // 음악 시작
+    MusicManager.init(this);
+    MusicManager.updateScene(this);
+    MusicManager.play();
 
     this.add.text(cx, 120, 'WAVE SURVIVAL', {
       fontSize: '52px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
@@ -71,6 +320,7 @@ class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     const keys = ['easy', 'normal', 'hard'];
+    this.diffButtons = [];
     keys.forEach((key, i) => {
       const diff = DIFFICULTY[key];
       const y = 310 + i * 100;
@@ -90,11 +340,35 @@ class MenuScene extends Phaser.Scene {
       bg.on('pointerover', () => bg.setFillStyle(diff.color, 0.5));
       bg.on('pointerout', () => bg.setFillStyle(diff.color, 0.25));
       bg.on('pointerdown', () => this.scene.start('GameScene', { difficulty: key }));
+      this.diffButtons.push(bg);
     });
 
-    this.add.text(cx, VIEW_H - 40, 'WASD / 방향키로 이동  |  공격은 자동', {
+    // 설정 버튼
+    const settingsBg = this.add.rectangle(cx, VIEW_H - 80, 160, 44, 0x333355)
+      .setStrokeStyle(1, 0x6666aa)
+      .setInteractive({ useHandCursor: true });
+    this.add.text(cx, VIEW_H - 80, 'SETTINGS', {
+      fontSize: '18px', fill: '#aaaacc', fontFamily: 'monospace',
+    }).setOrigin(0.5);
+    settingsBg.on('pointerover', () => settingsBg.setFillStyle(0x4444aa));
+    settingsBg.on('pointerout', () => settingsBg.setFillStyle(0x333355));
+    settingsBg.on('pointerdown', () => this.showSettings());
+
+    this.add.text(cx, VIEW_H - 40, 'WASD / 방향키로 이동  |  공격은 자동  |  R: 폭탄', {
       fontSize: '14px', fill: '#666666', fontFamily: 'monospace',
     }).setOrigin(0.5);
+
+    this.settingsEls = [];
+  }
+
+  showSettings() {
+    if (this.settingsEls.length > 0) return;
+    const els = [];
+    createSettingsPanel(this, VIEW_W / 2, VIEW_H / 2, els, () => {
+      this.settingsEls.forEach(e => e.destroy());
+      this.settingsEls = [];
+    });
+    this.settingsEls = els;
   }
 }
 
@@ -112,6 +386,10 @@ class GameScene extends Phaser.Scene {
   create() {
     const d = this.diff;
 
+    // 음악 씬 업데이트
+    MusicManager.updateScene(this);
+    MusicManager.play();
+
     // --- 상태 ---
     this.hp = d.playerHp;
     this.maxHp = d.playerHp;
@@ -126,11 +404,11 @@ class GameScene extends Phaser.Scene {
     this.bulletPierce = 1;
     this.lastFired = 0;
     this.paused = false;
-    this.totalBulletsFired = 0;   // 일반 탄환 발사 카운트
-    this.healCollected = 0;       // 초록 회복약 수집 카운트
-    this.bombCount = 0;           // 보유 폭탄 수
-    this.lastHpUpgrade = 0;       // 마지막 체력 증가 기준 킬수
-    this.fastSpawnCount = 0;      // 빨간원 스폰 카운터 (100마다 자폭형)
+    this.totalBulletsFired = 0;
+    this.healCollected = 0;
+    this.bombCount = 0;
+    this.lastHpUpgrade = 0;
+    this.fastSpawnCount = 0;
 
     // --- 파티클 텍스처 생성 ---
     if (!this.textures.exists('particle')) {
@@ -148,23 +426,20 @@ class GameScene extends Phaser.Scene {
     //  배경 격자 + 맵 경계선 (카메라와 함께 스크롤)
     // =====================================================
     const grid = this.add.graphics();
-    // 격자 — 배경과 대비되는 밝은 색
     grid.lineStyle(1, 0x445588, 0.6);
     for (let gx = 0; gx <= WORLD_W; gx += 64) grid.lineBetween(gx, 0, gx, WORLD_H);
     for (let gy = 0; gy <= WORLD_H; gy += 64) grid.lineBetween(0, gy, WORLD_W, gy);
-    // 맵 경계 — 두꺼운 빨간 테두리
     grid.lineStyle(6, 0xff4444, 1.0);
     grid.strokeRect(3, 3, WORLD_W - 6, WORLD_H - 6);
     grid.setDepth(0);
 
-    // 맵 바깥 어둡게 (경계 강조)
     const outside = this.add.graphics();
     outside.fillStyle(0x000000, 0.6);
     const pad = 800;
-    outside.fillRect(-pad, -pad, WORLD_W + pad * 2, pad);             // 위
-    outside.fillRect(-pad, WORLD_H, WORLD_W + pad * 2, pad);          // 아래
-    outside.fillRect(-pad, 0, pad, WORLD_H);                          // 왼쪽
-    outside.fillRect(WORLD_W, 0, pad, WORLD_H);                       // 오른쪽
+    outside.fillRect(-pad, -pad, WORLD_W + pad * 2, pad);
+    outside.fillRect(-pad, WORLD_H, WORLD_W + pad * 2, pad);
+    outside.fillRect(-pad, 0, pad, WORLD_H);
+    outside.fillRect(WORLD_W, 0, pad, WORLD_H);
     outside.setDepth(0);
 
     // --- 플레이어 ---
@@ -172,7 +447,7 @@ class GameScene extends Phaser.Scene {
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
 
-    // --- 카메라 (부드러운 추적 + 넓은 데드존) ---
+    // --- 카메라 ---
     this.cameras.main.setBounds(-pad, -pad, WORLD_W + pad * 2, WORLD_H + pad * 2);
     this.cameras.main.startFollow(this.player, true, 0.04, 0.04);
     this.cameras.main.setDeadzone(VIEW_W * 0.55, VIEW_H * 0.55);
@@ -212,7 +487,9 @@ class GameScene extends Phaser.Scene {
 
     // --- 일시정지 ---
     this.pauseMenuElements = [];
+    this.settingsEls = [];
     this.input.keyboard.on('keydown-SPACE', () => {
+      if (this.settingsEls.length > 0) return;
       if (this.paused) this.resumeGame();
       else this.showPauseMenu();
     });
@@ -318,7 +595,6 @@ class GameScene extends Phaser.Scene {
     this.totalBulletsFired++;
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, nearest.x, nearest.y);
 
-    // 100발째는 세모 폭탄으로 발사
     if (this.totalBulletsFired % 100 === 0) {
       this.fireTriangleBomb(angle, 'auto');
       this.showBuffText('AUTO BOMB!');
@@ -369,7 +645,6 @@ class GameScene extends Phaser.Scene {
     if (this.paused) return;
     const count = Math.min(Math.floor((2 + this.wave) * this.diff.spawnCountMul), 12);
     for (let i = 0; i < count; i++) {
-      // 노란 변종 확률: 기본 5% + 웨이브마다 2%씩 증가 (최대 30%)
       const goldChance = Math.min(0.05 + (this.wave - 1) * 0.02, 0.30);
       let type;
       const r = Math.random();
@@ -378,17 +653,13 @@ class GameScene extends Phaser.Scene {
       } else {
         type = Math.random() < goldChance ? 'goldRect' : 'tank';
       }
-      // 빨간원 100마다 자폭형(옅은 빨간원)으로 교체
       let isSuicider = false;
       if (type === 'fast') {
         this.fastSpawnCount++;
-        if (this.fastSpawnCount % 100 === 0) {
-          isSuicider = true;
-        }
+        if (this.fastSpawnCount % 100 === 0) isSuicider = true;
       }
       const cfg = ENEMY_TYPES[type];
 
-      // 카메라 뷰포트 가장자리 밖에서 스폰
       const cam = this.cameras.main;
       const cl = cam.scrollX, ct = cam.scrollY;
       const cr = cl + VIEW_W, cb = ct + VIEW_H;
@@ -406,7 +677,6 @@ class GameScene extends Phaser.Scene {
 
       let enemy;
       if (isSuicider) {
-        // 자폭형: 옅은 빨간 원, 약간 더 큼
         enemy = this.add.circle(x, y, cfg.size + 4, 0xff8888);
         enemy.setAlpha(0.7);
       } else if (cfg.shape === 'circle') {
@@ -427,9 +697,7 @@ class GameScene extends Phaser.Scene {
       enemy.setData('suicider', isSuicider);
       this.enemies.add(enemy);
 
-      // 자폭형: 10초 후 자체 폭발
       if (isSuicider) {
-        // 깜빡임으로 위험 표시
         this.tweens.add({ targets: enemy, alpha: 0.3, yoyo: true, repeat: -1, duration: 400 });
         this.time.delayedCall(10000, () => {
           if (enemy.active) this.suiciderExplode(enemy);
@@ -448,12 +716,10 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: txt, alpha: 0, y: txt.y - 40, duration: 1500, onComplete: () => txt.destroy() });
   }
 
-  // ---------- 자폭형 폭발 (초록약 없음) ----------
+  // ---------- 자폭형 폭발 ----------
   suiciderExplode(enemy) {
     const gridX = Math.floor(enemy.x / 64);
     const gridY = Math.floor(enemy.y / 64);
-
-    // 2x2 범위
     const cells = [
       { gx: gridX,     gy: gridY },
       { gx: gridX + 1, gy: gridY },
@@ -461,7 +727,8 @@ class GameScene extends Phaser.Scene {
       { gx: gridX + 1, gy: gridY + 1 },
     ];
 
-    // 폭발 이펙트 (빨간색)
+    SFX.bombExplode();
+
     const fx = this.add.graphics();
     fx.setDepth(50);
     cells.forEach(c => {
@@ -472,17 +739,13 @@ class GameScene extends Phaser.Scene {
     });
     this.tweens.add({ targets: fx, alpha: 0, duration: 600, onComplete: () => fx.destroy() });
 
-    // 범위 내 적 모두 소멸 (초록약 드롭 없음)
     const toKill = [];
     this.enemies.getChildren().forEach(e => {
       if (!e.active) return;
       const eGridX = Math.floor(e.x / 64);
       const eGridY = Math.floor(e.y / 64);
       for (const c of cells) {
-        if (eGridX === c.gx && eGridY === c.gy) {
-          toKill.push(e);
-          break;
-        }
+        if (eGridX === c.gx && eGridY === c.gy) { toKill.push(e); break; }
       }
     });
 
@@ -495,7 +758,6 @@ class GameScene extends Phaser.Scene {
 
   addKill() {
     this.kills++;
-    // kills 100 넘을 때마다 최대 체력 +10%
     const milestone = Math.floor(this.kills / 100);
     if (milestone > this.lastHpUpgrade) {
       this.lastHpUpgrade = milestone;
@@ -519,21 +781,19 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: enemy, alpha: 0.3, yoyo: true, duration: 60 });
 
     if (hp <= 0) {
-      // 자폭형은 죽을 때 즉시 폭발 (초록약 없음)
       if (enemy.getData('suicider')) {
         this.suiciderExplode(enemy);
         return;
       }
 
+      SFX.enemyDeath();
       this.spawnDeathParticles(enemy.x, enemy.y, enemy.fillColor);
       this.addKill();
-      // 초록 회복약
       const healOrb = this.add.circle(enemy.x, enemy.y, 5, 0x00ff88);
       this.physics.add.existing(healOrb);
       healOrb.setData('type', 'heal');
       this.powerups.add(healOrb);
 
-      // 노란 변종 드롭
       const dropType = enemy.getData('drop');
       if (dropType) {
         let powerup;
@@ -556,6 +816,7 @@ class GameScene extends Phaser.Scene {
     if (!enemy.active) return;
     this.hp -= enemy.getData('damage');
     enemy.destroy();
+    SFX.playerHit();
     this.cameras.main.shake(100, 0.008);
     this.tweens.add({ targets: player, alpha: 0.3, yoyo: true, duration: 80 });
     if (this.hp <= 0) { this.hp = 0; this.gameOver(); }
@@ -583,7 +844,6 @@ class GameScene extends Phaser.Scene {
 
   // ---------- 폭탄 ----------
   fireTriangleBomb(angle, bombType) {
-    // manual = 3x3, 설치형 (3초 뒤 폭발) / auto = 2x2, 접촉 즉시 폭발
     const isManual = bombType === 'manual';
     const color = isManual ? 0xff4400 : 0xff6600;
     const size = isManual ? 22 : 18;
@@ -596,33 +856,26 @@ class GameScene extends Phaser.Scene {
     bomb.setData('planted', false);
     this.bombs.add(bomb);
 
-    // 회전 효과
     this.tweens.add({ targets: bomb, angle: 360, duration: 600, repeat: -1 });
 
     if (isManual) {
-      // R키 폭탄: 3초 후 자동 설치 (날아가다 멈춤), 설치 후 3초 뒤 폭발
       this.time.delayedCall(3000, () => {
         if (!bomb.active || bomb.getData('detonated')) return;
-        // 적에 이미 닿아서 설치되었으면 무시
         if (!bomb.getData('planted')) this.plantBomb(bomb);
       });
     } else {
-      // 자동 폭탄: 3초 후 아무것도 안 맞으면 폭발
       this.time.delayedCall(3000, () => {
         if (bomb.active && !bomb.getData('detonated')) this.detonateBomb(bomb);
       });
     }
   }
 
-  // R키 폭탄이 적에 닿으면 그 자리에 설치
   plantBomb(bomb) {
     if (bomb.getData('planted') || bomb.getData('detonated')) return;
     bomb.setData('planted', true);
     bomb.body.setVelocity(0, 0);
-    // 설치된 위치에서 깜빡임
     this.tweens.killTweensOf(bomb);
     this.tweens.add({ targets: bomb, scaleX: 1.3, scaleY: 1.3, yoyo: true, repeat: -1, duration: 300 });
-    // 3초 뒤 폭발
     this.time.delayedCall(3000, () => {
       if (bomb.active && !bomb.getData('detonated')) this.detonateBomb(bomb);
     });
@@ -632,10 +885,8 @@ class GameScene extends Phaser.Scene {
     if (!bomb.active || bomb.getData('detonated')) return;
     const isManual = bomb.getData('bombType') === 'manual';
     if (isManual) {
-      // R키 폭탄: 적에 닿으면 그 자리에 설치 (즉시 안 터짐)
       if (!bomb.getData('planted')) this.plantBomb(bomb);
     } else {
-      // 자동 폭탄: 접촉 즉시 폭발
       this.detonateBomb(bomb);
     }
   }
@@ -649,7 +900,6 @@ class GameScene extends Phaser.Scene {
     const gridY = Math.floor(by / 64);
     const isManual = bomb.getData('bombType') === 'manual';
 
-    // manual(R키) = 3x3 (자기 중심 상하좌우+대각선), auto = 2x2
     const cells = [];
     if (isManual) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -664,7 +914,8 @@ class GameScene extends Phaser.Scene {
       cells.push({ gx: gridX + 1, gy: gridY + 1 });
     }
 
-    // 폭발 시각 이펙트 (0.5초간 유지)
+    SFX.bombExplode();
+
     const fx = this.add.graphics();
     fx.setDepth(50);
     cells.forEach(c => {
@@ -675,20 +926,15 @@ class GameScene extends Phaser.Scene {
     });
     this.tweens.add({ targets: fx, alpha: 0, duration: 500, onComplete: () => fx.destroy() });
 
-    // 폭탄 제거
     bomb.destroy();
 
-    // 0.5초간 매 프레임 범위 내 적 처치 (들어오는 적도 다 죽음)
-    const killZoneTimer = this.time.addEvent({
-      delay: 50,  // 50ms 간격으로 체크
-      repeat: 9,  // 10회 = 500ms
-      callback: () => {
-        this.killEnemiesInCells(cells);
-      },
+    this.time.addEvent({
+      delay: 50,
+      repeat: 9,
+      callback: () => { this.killEnemiesInCells(cells); },
     });
   }
 
-  // 격자 범위 내 적 처치 (폭탄 공용)
   killEnemiesInCells(cells) {
     const toKill = [];
     this.enemies.getChildren().forEach(e => {
@@ -696,22 +942,18 @@ class GameScene extends Phaser.Scene {
       const eGridX = Math.floor(e.x / 64);
       const eGridY = Math.floor(e.y / 64);
       for (const c of cells) {
-        if (eGridX === c.gx && eGridY === c.gy) {
-          toKill.push(e);
-          break;
-        }
+        if (eGridX === c.gx && eGridY === c.gy) { toKill.push(e); break; }
       }
     });
 
     toKill.forEach(e => {
+      SFX.enemyDeath();
       this.spawnDeathParticles(e.x, e.y, e.fillColor);
       this.addKill();
-      // 초록 회복약 드롭
       const healOrb = this.add.circle(e.x, e.y, 5, 0x00ff88);
       this.physics.add.existing(healOrb);
       healOrb.setData('type', 'heal');
       this.powerups.add(healOrb);
-      // 노란 변종 드롭
       const dropType = e.getData('drop');
       if (dropType) {
         let powerup;
@@ -760,20 +1002,20 @@ class GameScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(300);
     els.push(overlay);
 
-    const title = this.add.text(VIEW_W / 2, VIEW_H / 2 - 100, 'PAUSED', {
+    const title = this.add.text(VIEW_W / 2, VIEW_H / 2 - 120, 'PAUSED', {
       fontSize: '40px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(301);
     els.push(title);
 
-    const hint = this.add.text(VIEW_W / 2, VIEW_H / 2 - 55, 'SPACE 를 눌러 계속', {
+    const hint = this.add.text(VIEW_W / 2, VIEW_H / 2 - 75, 'SPACE 를 눌러 계속', {
       fontSize: '14px', fill: '#888888', fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(301);
     els.push(hint);
 
     // 계속하기
-    const resumeBg = this.add.rectangle(VIEW_W / 2, VIEW_H / 2 + 10, 260, 50, 0x446644)
+    const resumeBg = this.add.rectangle(VIEW_W / 2, VIEW_H / 2 - 20, 260, 50, 0x446644)
       .setScrollFactor(0).setDepth(301).setInteractive({ useHandCursor: true });
-    const resumeLabel = this.add.text(VIEW_W / 2, VIEW_H / 2 + 10, '다시 시작', {
+    const resumeLabel = this.add.text(VIEW_W / 2, VIEW_H / 2 - 20, '다시 시작', {
       fontSize: '22px', fill: '#ffffff', fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(302);
     els.push(resumeBg, resumeLabel);
@@ -781,10 +1023,21 @@ class GameScene extends Phaser.Scene {
     resumeBg.on('pointerout', () => resumeBg.setFillStyle(0x446644));
     resumeBg.on('pointerdown', () => this.resumeGame());
 
-    // 메뉴로
-    const menuBg = this.add.rectangle(VIEW_W / 2, VIEW_H / 2 + 75, 260, 50, 0x444466)
+    // 설정
+    const settingsBg = this.add.rectangle(VIEW_W / 2, VIEW_H / 2 + 45, 260, 50, 0x335555)
       .setScrollFactor(0).setDepth(301).setInteractive({ useHandCursor: true });
-    const menuLabel = this.add.text(VIEW_W / 2, VIEW_H / 2 + 75, '메뉴로', {
+    const settingsLabel = this.add.text(VIEW_W / 2, VIEW_H / 2 + 45, '설정', {
+      fontSize: '22px', fill: '#ffffff', fontFamily: 'monospace',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(302);
+    els.push(settingsBg, settingsLabel);
+    settingsBg.on('pointerover', () => settingsBg.setFillStyle(0x55aaaa));
+    settingsBg.on('pointerout', () => settingsBg.setFillStyle(0x335555));
+    settingsBg.on('pointerdown', () => this.showSettingsFromPause());
+
+    // 메뉴로
+    const menuBg = this.add.rectangle(VIEW_W / 2, VIEW_H / 2 + 110, 260, 50, 0x444466)
+      .setScrollFactor(0).setDepth(301).setInteractive({ useHandCursor: true });
+    const menuLabel = this.add.text(VIEW_W / 2, VIEW_H / 2 + 110, '메뉴로', {
       fontSize: '22px', fill: '#ffffff', fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(302);
     els.push(menuBg, menuLabel);
@@ -795,9 +1048,24 @@ class GameScene extends Phaser.Scene {
     this.pauseMenuElements = els;
   }
 
+  showSettingsFromPause() {
+    if (this.settingsEls.length > 0) return;
+    // 일시정지 메뉴 숨기기
+    this.pauseMenuElements.forEach(el => el.setVisible(false));
+    const els = [];
+    createSettingsPanel(this, VIEW_W / 2, VIEW_H / 2, els, () => {
+      this.settingsEls.forEach(e => e.destroy());
+      this.settingsEls = [];
+      this.pauseMenuElements.forEach(el => el.setVisible(true));
+    });
+    this.settingsEls = els;
+  }
+
   resumeGame() {
     this.pauseMenuElements.forEach(el => el.destroy());
     this.pauseMenuElements = [];
+    this.settingsEls.forEach(el => el.destroy());
+    this.settingsEls = [];
     this.paused = false;
     this.physics.resume();
   }
