@@ -128,6 +128,15 @@ class GameScene extends Phaser.Scene {
     this.lastHpUpgrade = 0;
     this.fastSpawnCount = 0;
 
+    // --- 파티클 텍스처 생성 ---
+    if (!this.textures.exists('particle')) {
+      const gfx = this.make.graphics({ add: false });
+      gfx.fillStyle(0xffffff);
+      gfx.fillCircle(4, 4, 4);
+      gfx.generateTexture('particle', 8, 8);
+      gfx.destroy();
+    }
+
     // --- 월드 경계 ---
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
 
@@ -294,7 +303,8 @@ class GameScene extends Phaser.Scene {
       this.fireTriangleBomb(angle, 'auto');
       this.showBuffText('AUTO BOMB!');
     } else {
-      const b = this.add.circle(this.player.x, this.player.y, this.bulletSize, 0xffff00);
+      const b = this.add.rectangle(this.player.x, this.player.y, 14, 5, 0xffff00);
+      b.setRotation(angle);
       this.physics.add.existing(b);
       b.body.setVelocity(Math.cos(angle) * BULLET_SPEED, Math.sin(angle) * BULLET_SPEED);
       b.setData('damage', this.bulletDamage);
@@ -451,6 +461,7 @@ class GameScene extends Phaser.Scene {
     });
 
     toKill.forEach(e => {
+      this.spawnDeathParticles(e.x, e.y, e.fillColor);
       this.addKill();
       e.destroy();
     });
@@ -486,6 +497,7 @@ class GameScene extends Phaser.Scene {
         return;
       }
 
+      this.spawnDeathParticles(enemy.x, enemy.y, enemy.fillColor);
       this.addKill();
       const healOrb = this.add.circle(enemy.x, enemy.y, 5, 0x00ff88);
       this.physics.add.existing(healOrb);
@@ -647,6 +659,7 @@ class GameScene extends Phaser.Scene {
     });
 
     toKill.forEach(e => {
+      this.spawnDeathParticles(e.x, e.y, e.fillColor);
       this.addKill();
       const healOrb = this.add.circle(e.x, e.y, 5, 0x00ff88);
       this.physics.add.existing(healOrb);
@@ -668,6 +681,19 @@ class GameScene extends Phaser.Scene {
       }
       e.destroy();
     });
+  }
+
+  spawnDeathParticles(x, y, color) {
+    const emitter = this.add.particles(x, y, 'particle', {
+      speed: { min: 60, max: 180 },
+      scale: { start: 0.7, end: 0 },
+      lifespan: 350,
+      quantity: 10,
+      tint: color,
+      emitting: false,
+    });
+    emitter.explode(10);
+    this.time.delayedCall(500, () => emitter.destroy());
   }
 
   showBuffText(msg) {
