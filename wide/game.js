@@ -884,10 +884,12 @@ class GameScene extends Phaser.Scene {
       SFX.enemyDeath();
       this.spawnDeathParticles(enemy.x, enemy.y, enemy.fillColor);
       this.addKill();
-      const healOrb = this.add.circle(enemy.x, enemy.y, 5, 0x00ff88);
-      this.physics.add.existing(healOrb);
-      healOrb.setData('type', 'heal');
-      this.powerups.add(healOrb);
+      if (Math.random() < 0.4) {
+        const healOrb = this.add.circle(enemy.x, enemy.y, 5, 0x00ff88);
+        this.physics.add.existing(healOrb);
+        healOrb.setData('type', 'heal');
+        this.powerups.add(healOrb);
+      }
 
       const dropType = enemy.getData('drop');
       if (dropType) {
@@ -1056,10 +1058,12 @@ class GameScene extends Phaser.Scene {
       SFX.enemyDeath();
       this.spawnDeathParticles(e.x, e.y, e.fillColor);
       this.addKill();
-      const healOrb = this.add.circle(e.x, e.y, 5, 0x00ff88);
-      this.physics.add.existing(healOrb);
-      healOrb.setData('type', 'heal');
-      this.powerups.add(healOrb);
+      if (Math.random() < 0.4) {
+        const healOrb = this.add.circle(e.x, e.y, 5, 0x00ff88);
+        this.physics.add.existing(healOrb);
+        healOrb.setData('type', 'heal');
+        this.powerups.add(healOrb);
+      }
       const dropType = e.getData('drop');
       if (dropType) {
         let powerup;
