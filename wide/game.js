@@ -29,7 +29,7 @@ const DIFFICULTY = {
     desc: '체력 많고 적 느림 — 입문용',
     playerHp: 200, playerSpeed: 220, fireRate: 250, bulletDamage: 30,
     enemyHpMul: 0.6, enemySpeedMul: 0.7, spawnCountMul: 0.6, spawnDelay: 1600,
-    waveHpBonus: 0, waveSpeedBonus: 4,
+    waveHpBonus: 2, waveSpeedBonus: 4,
   },
   normal: {
     label: '보통',
@@ -37,7 +37,7 @@ const DIFFICULTY = {
     desc: '균형 잡힌 기본 난이도',
     playerHp: 100, playerSpeed: 200, fireRate: 300, bulletDamage: 20,
     enemyHpMul: 1.0, enemySpeedMul: 1.0, spawnCountMul: 1.0, spawnDelay: 1200,
-    waveHpBonus: 0, waveSpeedBonus: 8,
+    waveHpBonus: 5, waveSpeedBonus: 8,
   },
   hard: {
     label: '어려움',
@@ -45,7 +45,7 @@ const DIFFICULTY = {
     desc: '적이 빠르고 많음 — 숙련자용',
     playerHp: 80, playerSpeed: 190, fireRate: 350, bulletDamage: 15,
     enemyHpMul: 1.4, enemySpeedMul: 1.3, spawnCountMul: 1.5, spawnDelay: 900,
-    waveHpBonus: 0, waveSpeedBonus: 12,
+    waveHpBonus: 8, waveSpeedBonus: 12,
   },
 };
 
@@ -502,8 +502,8 @@ class GameScene extends Phaser.Scene {
     grid.lineStyle(1, 0x445588, 0.3);
     for (let gx = 0; gx <= WORLD_W; gx += 64) grid.lineBetween(gx, 0, gx, WORLD_H);
     for (let gy = 0; gy <= WORLD_H; gy += 64) grid.lineBetween(0, gy, WORLD_W, gy);
-    grid.lineStyle(6, 0xff4444, 1.0);
-    grid.strokeRect(3, 3, WORLD_W - 6, WORLD_H - 6);
+    grid.lineStyle(2, 0x4488ff, 0.8);
+    grid.strokeRect(1, 1, WORLD_W - 2, WORLD_H - 2);
     grid.setDepth(-1);
 
     const outside = this.add.graphics();
@@ -714,6 +714,17 @@ class GameScene extends Phaser.Scene {
       const angle = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
       const spd = e.getData('speed');
       e.body.setVelocity(Math.cos(angle) * spd, Math.sin(angle) * spd);
+      // 보스 체력바 위치 추적
+      if (e.getData('hpBar')) {
+        const bar = e.getData('hpBar');
+        const barBg = e.getData('hpBarBg');
+        barBg.x = e.x;
+        barBg.y = e.y - e.height / 2 - 10;
+        const ratio = Math.max(0, e.getData('hp') / e.getData('maxHp'));
+        bar.width = barBg.width * ratio;
+        bar.x = e.x - (barBg.width * (1 - ratio)) / 2;
+        bar.y = barBg.y;
+      }
     });
   }
 
@@ -776,9 +787,11 @@ class GameScene extends Phaser.Scene {
       const baseHp = cfg.shape === 'rect'
         ? Math.floor(this.bulletDamage * 1.8)
         : Math.floor(cfg.hp * this.diff.enemyHpMul);
-      enemy.setData('hp', baseHp);
-      const rawSpeed = Math.floor(cfg.speed * this.diff.enemySpeedMul) + (this.wave - 1) * this.diff.waveSpeedBonus;
-      enemy.setData('speed', Math.min(rawSpeed, 200));
+      const hpGrowth = baseHp + (this.wave - 1) * this.diff.waveHpBonus;
+      enemy.setData('hp', Math.min(hpGrowth, baseHp * 2));
+      const baseSpeed = Math.floor(cfg.speed * this.diff.enemySpeedMul);
+      const speedGrowth = baseSpeed + (this.wave - 1) * this.diff.waveSpeedBonus;
+      enemy.setData('speed', Math.min(speedGrowth, baseSpeed * 2));
       enemy.setData('xp', cfg.xp);
       enemy.setData('damage', cfg.damage);
       enemy.setData('type', type);
@@ -803,6 +816,118 @@ class GameScene extends Phaser.Scene {
       fontSize: '36px', fill: '#ff4444', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
     this.tweens.add({ targets: txt, alpha: 0, y: txt.y - 40, duration: 1500, onComplete: () => txt.destroy() });
+
+    // --- 보스 스폰 ---
+    if (this.wave === 10 || this.wave === 15) {
+      this.time.delayedCall(2000, () => this.spawnBoss('megaTank'));
+    }
+    if (this.wave === 15) {
+      this.time.delayedCall(3000, () => this.spawnBoss('splitter'));
+    }
+  }
+
+  // ---------- 보스: 거대탱크 ----------
+  // 큰 빨간 사각형, HP 매우 높음, 느리게 추적, 주기적으로 주변에 일반 적 소환
+  spawnBoss(type) {
+    const cam = this.cameras.main;
+    const cx = cam.scrollX + VIEW_W / 2;
+    const cy = cam.scrollY;
+    // 화면 위에서 등장
+    const spawnX = Phaser.Math.Clamp(cx + Phaser.Math.Between(-200, 200), 100, WORLD_W - 100);
+    const spawnY = Phaser.Math.Clamp(cy - 100, 50, WORLD_H - 50);
+
+    if (type === 'megaTank') {
+      const boss = this.add.rectangle(spawnX, spawnY, 56, 56, 0xcc2222);
+      this.physics.add.existing(boss);
+      boss.setData('hp', this.bulletDamage * 30);
+      boss.setData('speed', 40);
+      boss.setData('xp', 100);
+      boss.setData('damage', 40);
+      boss.setData('type', 'megaTank');
+      boss.setData('drop', null);
+      boss.setData('suicider', false);
+      boss.setData('boss', true);
+      this.enemies.add(boss);
+
+      // 체력바 표시
+      const hpBarBg = this.add.rectangle(spawnX, spawnY - 40, 60, 6, 0x333333).setDepth(10);
+      const hpBar = this.add.rectangle(spawnX, spawnY - 40, 60, 6, 0xff4444).setDepth(11);
+      boss.setData('hpBarBg', hpBarBg);
+      boss.setData('hpBar', hpBar);
+      boss.setData('maxHp', boss.getData('hp'));
+
+      // 보스 등장 알림
+      this.showBuffText('⚠ MEGA TANK ⚠');
+      SFX.bombExplode();
+
+      // 5초마다 주변에 일반 적 2마리 소환
+      const summonEvent = this.time.addEvent({
+        delay: 5000,
+        callback: () => {
+          if (!boss.active) { summonEvent.destroy(); return; }
+          for (let i = 0; i < 2; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 80;
+            const ex = boss.x + Math.cos(angle) * dist;
+            const ey = boss.y + Math.sin(angle) * dist;
+            const minion = this.add.circle(ex, ey, 12, 0xff4444);
+            this.physics.add.existing(minion);
+            minion.setData('hp', 20);
+            minion.setData('speed', 120);
+            minion.setData('xp', 10);
+            minion.setData('damage', 8);
+            minion.setData('type', 'fast');
+            minion.setData('drop', null);
+            minion.setData('suicider', false);
+            minion.setData('boss', false);
+            this.enemies.add(minion);
+          }
+        },
+        loop: true,
+      });
+    }
+
+    if (type === 'splitter') {
+      this.spawnSplitter(spawnX, spawnY + 100, 2);
+    }
+  }
+
+  // ---------- 보스: 분열체 ----------
+  // 죽으면 작은 적으로 분열, stage 단계만큼 분열
+  spawnSplitter(x, y, stage) {
+    const sizes = [36, 24, 14];
+    const hps = [this.bulletDamage * 15, this.bulletDamage * 6, this.bulletDamage * 2];
+    const speeds = [60, 90, 130];
+    const colors = [0xaa22cc, 0xcc44ee, 0xdd66ff];
+    const s = Math.min(stage, 2);
+    const sz = sizes[s];
+
+    const boss = this.add.rectangle(x, y, sz, sz, colors[s]);
+    this.physics.add.existing(boss);
+    boss.setData('hp', hps[s]);
+    boss.setData('speed', speeds[s]);
+    boss.setData('xp', 50);
+    boss.setData('damage', 25);
+    boss.setData('type', 'splitter');
+    boss.setData('drop', null);
+    boss.setData('suicider', false);
+    boss.setData('boss', true);
+    boss.setData('splitStage', s);
+    this.enemies.add(boss);
+
+    // 체력바 (1단계만)
+    if (s <= 1) {
+      const hpBarBg = this.add.rectangle(x, y - sz / 2 - 10, sz + 10, 5, 0x333333).setDepth(10);
+      const hpBar = this.add.rectangle(x, y - sz / 2 - 10, sz + 10, 5, 0xcc44ee).setDepth(11);
+      boss.setData('hpBarBg', hpBarBg);
+      boss.setData('hpBar', hpBar);
+      boss.setData('maxHp', boss.getData('hp'));
+    }
+
+    if (s === 0) {
+      this.showBuffText('⚠ SPLITTER ⚠');
+      SFX.bombExplode();
+    }
   }
 
   // ---------- 자폭형 폭발 ----------
@@ -868,16 +993,49 @@ class GameScene extends Phaser.Scene {
 
     this.tweens.add({ targets: enemy, alpha: 0.3, yoyo: true, duration: 60 });
 
+    // 보스 체력바 업데이트
+    if (enemy.getData('hpBar')) {
+      const ratio = Math.max(0, hp / enemy.getData('maxHp'));
+      const barBg = enemy.getData('hpBarBg');
+      const bar = enemy.getData('hpBar');
+      bar.width = barBg.width * ratio;
+      bar.x = enemy.x - (barBg.width * (1 - ratio)) / 2;
+      bar.y = enemy.y - enemy.height / 2 - 10;
+      barBg.x = enemy.x;
+      barBg.y = enemy.y - enemy.height / 2 - 10;
+    }
+
     if (hp <= 0) {
       if (enemy.getData('suicider')) {
         this.suiciderExplode(enemy);
         return;
       }
 
-      SFX.enemyDeath();
+      // 보스 체력바 제거
+      if (enemy.getData('hpBar')) {
+        enemy.getData('hpBar').destroy();
+        enemy.getData('hpBarBg').destroy();
+      }
+
+      // 분열체 처리
+      if (enemy.getData('type') === 'splitter') {
+        const stage = enemy.getData('splitStage');
+        if (stage < 2) {
+          for (let i = 0; i < 4; i++) {
+            const angle = (Math.PI * 2 / 4) * i;
+            const dist = 30;
+            this.spawnSplitter(enemy.x + Math.cos(angle) * dist, enemy.y + Math.sin(angle) * dist, stage + 1);
+          }
+        }
+        SFX.bombExplode();
+      } else {
+        SFX.enemyDeath();
+      }
+
       this.spawnDeathParticles(enemy.x, enemy.y, enemy.fillColor);
       this.addKill();
-      if (Math.random() < 0.4) {
+      const healChance = Math.min(0.4 + Math.floor(this.wave / 5) * 0.1, 0.7);
+      if (Math.random() < healChance) {
         const healOrb = this.add.circle(enemy.x, enemy.y, 5, 0x00ff88);
         this.physics.add.existing(healOrb);
         healOrb.setData('type', 'heal');
@@ -1060,7 +1218,8 @@ class GameScene extends Phaser.Scene {
       SFX.enemyDeath();
       this.spawnDeathParticles(e.x, e.y, e.fillColor);
       this.addKill();
-      if (Math.random() < 0.4) {
+      const healChance = Math.min(0.4 + Math.floor(this.wave / 5) * 0.1, 0.7);
+      if (Math.random() < healChance) {
         const healOrb = this.add.circle(e.x, e.y, 5, 0x00ff88);
         this.physics.add.existing(healOrb);
         healOrb.setData('type', 'heal');
