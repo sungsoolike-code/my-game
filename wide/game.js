@@ -12,7 +12,7 @@ const PLAYER_SPEED = 200;
 const PLAYER_MAX_HP = 100;
 const BULLET_SPEED = 500;
 const FIRE_RATE = 300;
-const WAVE_DURATION = 30;
+const WAVE_DURATION = 45;
 
 const ENEMY_TYPES = {
   fast:      { hp: 20, speed: 120, size: 12, color: 0xff4444, xp: 10, damage: 8,  shape: 'circle', drop: null },
@@ -29,7 +29,7 @@ const DIFFICULTY = {
     desc: '체력 많고 적 느림 — 입문용',
     playerHp: 200, playerSpeed: 220, fireRate: 250, bulletDamage: 30,
     enemyHpMul: 0.6, enemySpeedMul: 0.7, spawnCountMul: 0.6, spawnDelay: 1600,
-    waveHpBonus: 2, waveSpeedBonus: 4,
+    waveHpBonus: 0, waveSpeedBonus: 4,
   },
   normal: {
     label: '보통',
@@ -37,7 +37,7 @@ const DIFFICULTY = {
     desc: '균형 잡힌 기본 난이도',
     playerHp: 100, playerSpeed: 200, fireRate: 300, bulletDamage: 20,
     enemyHpMul: 1.0, enemySpeedMul: 1.0, spawnCountMul: 1.0, spawnDelay: 1200,
-    waveHpBonus: 5, waveSpeedBonus: 8,
+    waveHpBonus: 0, waveSpeedBonus: 8,
   },
   hard: {
     label: '어려움',
@@ -45,7 +45,7 @@ const DIFFICULTY = {
     desc: '적이 빠르고 많음 — 숙련자용',
     playerHp: 80, playerSpeed: 190, fireRate: 350, bulletDamage: 15,
     enemyHpMul: 1.4, enemySpeedMul: 1.3, spawnCountMul: 1.5, spawnDelay: 900,
-    waveHpBonus: 8, waveSpeedBonus: 12,
+    waveHpBonus: 0, waveSpeedBonus: 12,
   },
 };
 
@@ -436,6 +436,7 @@ class GameScene extends Phaser.Scene {
     this.bombCount = 0;
     this.lastHpUpgrade = 0;
     this.lastBombReward = 0;
+    this.initialMaxHp = d.playerHp;    // 초기 체력 기록 (HP 성장 상한 계산용)
     this.fastSpawnCount = 0;
     this.armorCount = 0;
     this.invincible = false;
@@ -775,8 +776,9 @@ class GameScene extends Phaser.Scene {
       const baseHp = cfg.shape === 'rect'
         ? Math.floor(this.bulletDamage * 1.8)
         : Math.floor(cfg.hp * this.diff.enemyHpMul);
-      enemy.setData('hp', baseHp + (this.wave - 1) * this.diff.waveHpBonus);
-      enemy.setData('speed', Math.floor(cfg.speed * this.diff.enemySpeedMul) + (this.wave - 1) * this.diff.waveSpeedBonus);
+      enemy.setData('hp', baseHp);
+      const rawSpeed = Math.floor(cfg.speed * this.diff.enemySpeedMul) + (this.wave - 1) * this.diff.waveSpeedBonus;
+      enemy.setData('speed', Math.min(rawSpeed, 200));
       enemy.setData('xp', cfg.xp);
       enemy.setData('damage', cfg.damage);
       enemy.setData('type', type);
@@ -845,15 +847,6 @@ class GameScene extends Phaser.Scene {
 
   addKill() {
     this.kills++;
-    // kills 100마다 최대 체력 +10%
-    const hpMilestone = Math.floor(this.kills / 100);
-    if (hpMilestone > this.lastHpUpgrade) {
-      this.lastHpUpgrade = hpMilestone;
-      const bonus = Math.floor(this.maxHp * 0.1);
-      this.maxHp += bonus;
-      this.hp = Math.min(this.hp + bonus, this.maxHp);
-      this.showBuffText(`MAX HP +10%  (${this.maxHp})`);
-    }
     // kills 50마다 폭탄 +1
     const bombMilestone = Math.floor(this.kills / 50);
     if (bombMilestone > this.lastBombReward) {
@@ -934,8 +927,17 @@ class GameScene extends Phaser.Scene {
       this.hp = Math.min(this.hp + 5, this.maxHp);
       this.healCollected++;
       if (this.healCollected % 100 === 0) {
+        // 아머 +1
         this.armorCount++;
         this.showBuffText('ARMOR +1!');
+        // 최대 체력 +10% (초기 체력의 100%까지)
+        const maxCap = this.initialMaxHp * 2;
+        if (this.maxHp < maxCap) {
+          const bonus = Math.floor(this.initialMaxHp * 0.1);
+          this.maxHp = Math.min(this.maxHp + bonus, maxCap);
+          this.hp = Math.min(this.hp + bonus, this.maxHp);
+          this.showBuffText(`MAX HP +10%  (${this.maxHp})`);
+        }
       }
     } else if (type === 'speed') {
       const maxSpeed = this.diff.playerSpeed * 1.28;
