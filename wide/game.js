@@ -563,7 +563,7 @@ class GameScene extends Phaser.Scene {
     if (frBoost > 0) buffStr += `ATK.SPD+${frBoost}%`;
     this.buffText.setText(buffStr);
     this.bombText.setText(`BOMBS: ${this.bombCount} (R)`);
-    this.healCountText.setText(`HEAL: ${this.healCollected % 100}/100`);
+    this.healCountText.setText(`HEAL: ${this.healCollected % 50}/50`);
   }
 
   // ---------- 업데이트 ----------
@@ -828,13 +828,16 @@ class GameScene extends Phaser.Scene {
     if (type === 'heal') {
       this.hp = Math.min(this.hp + 5, this.maxHp);
       this.healCollected++;
-      if (this.healCollected % 100 === 0) {
+      if (this.healCollected % 50 === 0) {
         this.bombCount++;
         this.showBuffText('BOMB +1!');
       }
     } else if (type === 'speed') {
-      this.playerSpeed *= 1.05;
-      this.showBuffText('SPD +5%');
+      const maxSpeed = this.diff.playerSpeed * 1.28;
+      if (this.playerSpeed < maxSpeed) {
+        this.playerSpeed = Math.min(this.playerSpeed * 1.05, maxSpeed);
+        this.showBuffText('SPD +5%');
+      }
     } else if (type === 'fireRate') {
       this.fireRate *= 0.95;
       this.showBuffText('ATK.SPD +5%');
