@@ -52,13 +52,27 @@ const DIFFICULTY = {
 // ---------- 음악 트랙 목록 ----------
 const MUSIC_TRACKS = [
   'music/Crossing_the_Great_Pass.mp3',
+  'music/Last_Token_In.mp3',
+  'music/far from earth.mp3',
+  'music/fire for heart (1).mp3',
+  'music/fire for heart.mp3',
   'music/nice day rest (1).mp3',
+  'music/nice day rest (2).mp3',
   'music/nice day rest (3).mp3',
+  'music/nice day rest (4).mp3',
+  'music/nice day rest (5).mp3',
+  'music/nice day rest.mp3',
+  'music/peace day (1).mp3',
+  'music/peace day.mp3',
+  'music/peace in space (1).mp3',
   'music/peace in space (2).mp3',
   'music/peace in space.mp3',
+  'music/play with friends (1).mp3',
   'music/play with friends.mp3',
+  'music/running on desert (1).mp3',
   'music/running on desert.mp3',
   'music/space journey (1).mp3',
+  'music/space journey (2).mp3',
   'music/space journey.mp3',
   'music/storm in the galaxy.mp3',
   'music/storm of the moon.mp3',
@@ -222,6 +236,16 @@ const MusicManager = {
     }
   },
 
+  skip() {
+    if (!this._scene) return;
+    if (this._currentSound) {
+      this._currentSound.stop();
+      this._currentSound.destroy();
+      this._currentSound = null;
+    }
+    this._playNext();
+  },
+
   updateScene(scene) {
     this._scene = scene;
   },
@@ -354,7 +378,10 @@ class MenuScene extends Phaser.Scene {
     settingsBg.on('pointerout', () => settingsBg.setFillStyle(0x333355));
     settingsBg.on('pointerdown', () => this.showSettings());
 
-    this.add.text(cx, VIEW_H - 40, 'WASD / 방향키로 이동  |  공격은 자동  |  R: 폭탄', {
+    // 1키: 메뉴에서도 음악 스킵 가능
+    this.input.keyboard.on('keydown-ONE', () => MusicManager.skip());
+
+    this.add.text(cx, VIEW_H - 40, 'WASD: 이동  |  R: 폭탄  |  1: 다음곡  |  SPACE: 일시정지', {
       fontSize: '14px', fill: '#666666', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
@@ -423,15 +450,57 @@ class GameScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
 
     // =====================================================
-    //  배경 격자 + 맵 경계선 (카메라와 함께 스크롤)
+    //  우주 배경 (별 + 성운)
+    // =====================================================
+    const space = this.add.graphics();
+    space.setDepth(-2);
+
+    // 성운 (은은한 색 구름 3~5개)
+    const nebulae = [
+      { x: 400, y: 300, r: 300, color: 0x1a0a3a, alpha: 0.3 },
+      { x: 1500, y: 800, r: 400, color: 0x0a1a2a, alpha: 0.25 },
+      { x: 800, y: 1200, r: 350, color: 0x1a1030, alpha: 0.2 },
+      { x: 1800, y: 300, r: 250, color: 0x0a0a2a, alpha: 0.2 },
+      { x: 300, y: 1000, r: 280, color: 0x150a28, alpha: 0.25 },
+    ];
+    nebulae.forEach(n => {
+      for (let i = 5; i >= 1; i--) {
+        space.fillStyle(n.color, n.alpha * (i / 5));
+        space.fillCircle(n.x, n.y, n.r * (i / 5));
+      }
+    });
+
+    // 작은 별들 (먼 거리감 — 희미하고 작은 점)
+    const starCount = 120;
+    for (let i = 0; i < starCount; i++) {
+      const sx = Math.random() * WORLD_W;
+      const sy = Math.random() * WORLD_H;
+      const brightness = 0.15 + Math.random() * 0.25;
+      const size = 0.5 + Math.random() * 1.2;
+      const colors = [0xffffff, 0xccccff, 0xffffcc, 0xaaccff];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      space.fillStyle(color, brightness);
+      space.fillCircle(sx, sy, size);
+    }
+
+    // 약간 더 밝은 별 몇 개 (포인트)
+    for (let i = 0; i < 15; i++) {
+      const sx = Math.random() * WORLD_W;
+      const sy = Math.random() * WORLD_H;
+      space.fillStyle(0xffffff, 0.4 + Math.random() * 0.2);
+      space.fillCircle(sx, sy, 1.5 + Math.random() * 0.8);
+    }
+
+    // =====================================================
+    //  격자 + 맵 경계선
     // =====================================================
     const grid = this.add.graphics();
-    grid.lineStyle(1, 0x445588, 0.6);
+    grid.lineStyle(1, 0x445588, 0.3);
     for (let gx = 0; gx <= WORLD_W; gx += 64) grid.lineBetween(gx, 0, gx, WORLD_H);
     for (let gy = 0; gy <= WORLD_H; gy += 64) grid.lineBetween(0, gy, WORLD_W, gy);
     grid.lineStyle(6, 0xff4444, 1.0);
     grid.strokeRect(3, 3, WORLD_W - 6, WORLD_H - 6);
-    grid.setDepth(0);
+    grid.setDepth(-1);
 
     const outside = this.add.graphics();
     outside.fillStyle(0x000000, 0.6);
@@ -503,6 +572,11 @@ class GameScene extends Phaser.Scene {
       this.bombCount--;
       const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, nearest.x, nearest.y);
       this.fireTriangleBomb(angle, 'manual');
+    });
+
+    // --- 1키: 다음 음악 스킵 ---
+    this.input.keyboard.on('keydown-ONE', () => {
+      MusicManager.skip();
     });
 
     // --- 웨이브 타이머 ---
