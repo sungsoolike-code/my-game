@@ -381,7 +381,7 @@ class MenuScene extends Phaser.Scene {
     // 1키: 메뉴에서도 음악 스킵 가능
     this.input.keyboard.on('keydown-ONE', () => MusicManager.skip());
 
-    this.add.text(cx, VIEW_H - 40, 'WASD: 이동  |  R: 폭탄  |  1: 다음곡  |  SPACE: 일시정지', {
+    this.add.text(cx, VIEW_H - 40, 'WASD: 이동  R: 폭탄  F: 아머  1: 다음곡  SPACE: 일시정지', {
       fontSize: '14px', fill: '#666666', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
@@ -435,7 +435,10 @@ class GameScene extends Phaser.Scene {
     this.healCollected = 0;
     this.bombCount = 0;
     this.lastHpUpgrade = 0;
+    this.lastBombReward = 0;
     this.fastSpawnCount = 0;
+    this.armorCount = 0;
+    this.invincible = false;
 
     // --- 파티클 텍스처 생성 ---
     if (!this.textures.exists('particle')) {
@@ -579,6 +582,14 @@ class GameScene extends Phaser.Scene {
       MusicManager.skip();
     });
 
+    // --- F키: 아머 활성화 (2초 무적) ---
+    this.input.keyboard.on('keydown-F', () => {
+      if (this.paused || this.invincible) return;
+      if (this.armorCount <= 0) return;
+      this.armorCount--;
+      this.activateArmor();
+    });
+
     // --- 웨이브 타이머 ---
     this.time.addEvent({
       delay: 1000,
@@ -608,7 +619,8 @@ class GameScene extends Phaser.Scene {
     this.killText = this.add.text(VIEW_W - 10, 50, '', style).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
     this.buffText = this.add.text(20, 48, '', { fontSize: '13px', fill: '#ffdd00', fontFamily: 'monospace' }).setScrollFactor(0).setDepth(100);
     this.bombText = this.add.text(VIEW_W - 10, 70, '', { fontSize: '16px', fill: '#ff8844', fontFamily: 'monospace' }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
-    this.healCountText = this.add.text(VIEW_W - 10, 90, '', { fontSize: '13px', fill: '#88aa88', fontFamily: 'monospace' }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
+    this.armorText = this.add.text(VIEW_W - 10, 90, '', { fontSize: '16px', fill: '#44aaff', fontFamily: 'monospace' }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
+    this.healCountText = this.add.text(VIEW_W - 10, 110, '', { fontSize: '13px', fill: '#88aa88', fontFamily: 'monospace' }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
 
     const dc = this.diff.color;
     const dHex = '#' + dc.toString(16).padStart(6, '0');
@@ -637,7 +649,8 @@ class GameScene extends Phaser.Scene {
     if (frBoost > 0) buffStr += `ATK.SPD+${frBoost}%`;
     this.buffText.setText(buffStr);
     this.bombText.setText(`BOMBS: ${this.bombCount} (R)`);
-    this.healCountText.setText(`HEAL: ${this.healCollected % 50}/50`);
+    this.armorText.setText(`ARMOR: ${this.armorCount} (F)${this.invincible ? '  ★ACTIVE★' : ''}`);
+    this.healCountText.setText(`HEAL: ${this.healCollected % 100}/100`);
   }
 
   // ---------- 업데이트 ----------
@@ -832,13 +845,21 @@ class GameScene extends Phaser.Scene {
 
   addKill() {
     this.kills++;
-    const milestone = Math.floor(this.kills / 100);
-    if (milestone > this.lastHpUpgrade) {
-      this.lastHpUpgrade = milestone;
+    // kills 100마다 최대 체력 +10%
+    const hpMilestone = Math.floor(this.kills / 100);
+    if (hpMilestone > this.lastHpUpgrade) {
+      this.lastHpUpgrade = hpMilestone;
       const bonus = Math.floor(this.maxHp * 0.1);
       this.maxHp += bonus;
       this.hp = Math.min(this.hp + bonus, this.maxHp);
       this.showBuffText(`MAX HP +10%  (${this.maxHp})`);
+    }
+    // kills 50마다 폭탄 +1
+    const bombMilestone = Math.floor(this.kills / 50);
+    if (bombMilestone > this.lastBombReward) {
+      this.lastBombReward = bombMilestone;
+      this.bombCount++;
+      this.showBuffText('BOMB +1!');
     }
   }
 
@@ -888,6 +909,14 @@ class GameScene extends Phaser.Scene {
 
   onEnemyHitPlayer(player, enemy) {
     if (!enemy.active) return;
+    if (this.invincible) {
+      // 무적 상태: 적을 파괴하고 킬 카운트
+      SFX.enemyDeath();
+      this.spawnDeathParticles(enemy.x, enemy.y, enemy.fillColor);
+      this.addKill();
+      enemy.destroy();
+      return;
+    }
     this.hp -= enemy.getData('damage');
     enemy.destroy();
     SFX.playerHit();
@@ -902,9 +931,9 @@ class GameScene extends Phaser.Scene {
     if (type === 'heal') {
       this.hp = Math.min(this.hp + 5, this.maxHp);
       this.healCollected++;
-      if (this.healCollected % 50 === 0) {
-        this.bombCount++;
-        this.showBuffText('BOMB +1!');
+      if (this.healCollected % 100 === 0) {
+        this.armorCount++;
+        this.showBuffText('ARMOR +1!');
       }
     } else if (type === 'speed') {
       const maxSpeed = this.diff.playerSpeed * 1.28;
@@ -1060,6 +1089,30 @@ class GameScene extends Phaser.Scene {
     });
     emitter.explode(10);
     this.time.delayedCall(500, () => emitter.destroy());
+  }
+
+  activateArmor() {
+    this.invincible = true;
+    // 플레이어 시각 효과: 파란 쉴드 느낌
+    this.player.setFillStyle(0x44ffff);
+    this.player.setAlpha(0.8);
+    this.showBuffText('ARMOR ACTIVE! (2s)');
+
+    // 깜빡임으로 종료 임박 표시 (1.5초 후)
+    this.time.delayedCall(1500, () => {
+      if (!this.invincible) return;
+      this.tweens.add({
+        targets: this.player, alpha: 0.3, yoyo: true, repeat: 3, duration: 60,
+        onComplete: () => { if (this.player.active) this.player.setAlpha(1); }
+      });
+    });
+
+    // 2초 후 무적 해제
+    this.time.delayedCall(2000, () => {
+      this.invincible = false;
+      this.player.setFillStyle(0x4488ff);
+      this.player.setAlpha(1);
+    });
   }
 
   showBuffText(msg) {
