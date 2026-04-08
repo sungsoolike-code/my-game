@@ -502,8 +502,8 @@ class GameScene extends Phaser.Scene {
     grid.lineStyle(1, 0x445588, 0.3);
     for (let gx = 0; gx <= WORLD_W; gx += 64) grid.lineBetween(gx, 0, gx, WORLD_H);
     for (let gy = 0; gy <= WORLD_H; gy += 64) grid.lineBetween(0, gy, WORLD_W, gy);
-    grid.lineStyle(2, 0x4488ff, 0.8);
-    grid.strokeRect(1, 1, WORLD_W - 2, WORLD_H - 2);
+    grid.lineStyle(1, 0x4488ff, 0.7);
+    grid.strokeRect(0, 0, WORLD_W, WORLD_H);
     grid.setDepth(-1);
 
     const outside = this.add.graphics();
@@ -791,7 +791,7 @@ class GameScene extends Phaser.Scene {
       enemy.setData('hp', Math.min(hpGrowth, baseHp * 2));
       const baseSpeed = Math.floor(cfg.speed * this.diff.enemySpeedMul);
       const speedGrowth = baseSpeed + (this.wave - 1) * this.diff.waveSpeedBonus;
-      enemy.setData('speed', Math.min(speedGrowth, baseSpeed * 2));
+      enemy.setData('speed', Math.min(speedGrowth, baseSpeed * 3));
       enemy.setData('xp', cfg.xp);
       enemy.setData('damage', cfg.damage);
       enemy.setData('type', type);
@@ -816,6 +816,15 @@ class GameScene extends Phaser.Scene {
       fontSize: '36px', fill: '#ff4444', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
     this.tweens.add({ targets: txt, alpha: 0, y: txt.y - 40, duration: 1500, onComplete: () => txt.destroy() });
+
+    // Wave 10: 배경에 행성 등장
+    if (this.wave === 10) {
+      this.drawPlanets();
+    }
+
+    // --- 플레이어 속도도 웨이브에 따라 증가 ---
+    const newPlayerSpeed = this.diff.playerSpeed * (1 + (this.wave - 1) * 0.04);
+    this.playerSpeed = Math.min(newPlayerSpeed, this.diff.playerSpeed * 2.5);
 
     // --- 보스 스폰 ---
     if (this.wave === 10 || this.wave === 15) {
@@ -890,6 +899,43 @@ class GameScene extends Phaser.Scene {
     if (type === 'splitter') {
       this.spawnSplitter(spawnX, spawnY + 100, 2);
     }
+  }
+
+  // ---------- Wave 10 배경 행성 ----------
+  drawPlanets() {
+    const planets = this.add.graphics();
+    planets.setDepth(-1.5);  // 별 위, 격자 아래
+    planets.setAlpha(0);
+
+    // 좌상단 행성: 푸른 가스 행성
+    const p1x = 280, p1y = 260;
+    const p1r = 128;
+    // 본체
+    planets.fillStyle(0x223355, 0.2);
+    planets.fillCircle(p1x, p1y, p1r);
+    planets.fillStyle(0x2a4060, 0.15);
+    planets.fillCircle(p1x, p1y, p1r * 0.85);
+    planets.fillStyle(0x334466, 0.1);
+    planets.fillCircle(p1x - 15, p1y + 10, p1r * 0.6);
+    // 띠 (고리 느낌)
+    planets.lineStyle(2, 0x556688, 0.12);
+    planets.strokeEllipse(p1x, p1y, p1r * 2.6, p1r * 0.5);
+
+    // 우하단 행성: 붉은 암석 행성 (약간 작음)
+    const p2x = WORLD_W - 350, p2y = WORLD_H - 300;
+    const p2r = 100;
+    planets.fillStyle(0x442222, 0.2);
+    planets.fillCircle(p2x, p2y, p2r);
+    planets.fillStyle(0x553328, 0.15);
+    planets.fillCircle(p2x, p2y, p2r * 0.8);
+    // 크레이터 느낌
+    planets.fillStyle(0x332218, 0.1);
+    planets.fillCircle(p2x + 25, p2y - 20, p2r * 0.25);
+    planets.fillCircle(p2x - 30, p2y + 25, p2r * 0.2);
+    planets.fillCircle(p2x + 10, p2y + 35, p2r * 0.15);
+
+    // 서서히 나타나기
+    this.tweens.add({ targets: planets, alpha: 1, duration: 5000 });
   }
 
   // ---------- 보스: 분열체 ----------
@@ -1098,7 +1144,7 @@ class GameScene extends Phaser.Scene {
         }
       }
     } else if (type === 'speed') {
-      const maxSpeed = this.diff.playerSpeed * 1.28;
+      const maxSpeed = this.diff.playerSpeed * 2.5;
       if (this.playerSpeed < maxSpeed) {
         this.playerSpeed = Math.min(this.playerSpeed * 1.05, maxSpeed);
         this.showBuffText('SPD +5%');
