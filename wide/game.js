@@ -305,10 +305,16 @@ function createSettingsPanel(scene, cx, cy, els, onBack) {
     MusicManager.toggle(SETTINGS.musicOn);
   });
 
+  // 다음곡 힌트
+  const nextTrackHint = scene.add.text(cx, cy + 52, '1 키: 다음곡', {
+    fontSize: '14px', fill: '#888888', fontFamily: 'monospace',
+  }).setOrigin(0.5).setScrollFactor(0).setDepth(401);
+  els.push(nextTrackHint);
+
   // 뒤로가기
-  const backBg = scene.add.rectangle(cx, cy + 90, 200, 44, 0x444466)
+  const backBg = scene.add.rectangle(cx, cy + 100, 200, 44, 0x444466)
     .setScrollFactor(0).setDepth(401).setInteractive({ useHandCursor: true });
-  const backLabel = scene.add.text(cx, cy + 90, '뒤로', {
+  const backLabel = scene.add.text(cx, cy + 100, '뒤로', {
     fontSize: '20px', fill: '#ffffff', fontFamily: 'monospace',
   }).setOrigin(0.5).setScrollFactor(0).setDepth(402);
   els.push(backBg, backLabel);
