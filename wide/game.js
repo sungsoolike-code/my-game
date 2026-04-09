@@ -527,7 +527,7 @@ class GameScene extends Phaser.Scene {
     outside.setDepth(0);
 
     // --- 플레이어 ---
-    this.player = this.add.image(WORLD_W / 2, WORLD_H / 2, 'playerShip').setDisplaySize(48, 48);
+    this.player = this.add.image(WORLD_W / 2, WORLD_H / 2, 'playerShip').setDisplaySize(38, 38);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
 
