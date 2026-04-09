@@ -62,35 +62,32 @@ class MenuScene extends Phaser.Scene {
   create() {
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
 
-    this.add.text(cx, 80, 'WAVE SURVIVAL', {
-      fontSize: '52px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5);
-
-    // 타이틀 이미지
-    const titleImg = this.add.image(cx, 190, 'titleImg').setOrigin(0.5);
-    const maxW = 360, maxH = 140;
+    // 타이틀 이미지 (화면 중앙)
+    const titleImg = this.add.image(cx, cy - 60, 'titleImg').setOrigin(0.5);
+    const maxW = 700, maxH = 400;
     const scale = Math.min(maxW / titleImg.width, maxH / titleImg.height);
     titleImg.setScale(scale);
 
-    this.add.text(cx, 290, '난이도를 선택하세요', {
-      fontSize: '20px', fill: '#aaaaaa', fontFamily: 'monospace',
+    this.add.text(cx, 60, 'WAVE SURVIVAL', {
+      fontSize: '52px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
 
+    // 난이도 버튼 (가로 배치)
+    const btnY = VIEW_H - 160;
+    const btnW = 200, btnH = 50, btnGap = 30;
     const keys = ['easy', 'normal', 'hard'];
+    const totalW = keys.length * btnW + (keys.length - 1) * btnGap;
+    const startX = cx - totalW / 2 + btnW / 2;
     keys.forEach((key, i) => {
       const diff = DIFFICULTY[key];
-      const y = 370 + i * 90;
+      const bx = startX + i * (btnW + btnGap);
 
-      const bg = this.add.rectangle(cx, y, 400, 72, diff.color, 0.25)
+      const bg = this.add.rectangle(bx, btnY, btnW, btnH, diff.color, 0.25)
         .setStrokeStyle(2, diff.color)
         .setInteractive({ useHandCursor: true });
 
-      this.add.text(cx, y - 12, diff.label, {
-        fontSize: '26px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-      }).setOrigin(0.5);
-
-      this.add.text(cx, y + 18, diff.desc, {
-        fontSize: '14px', fill: '#cccccc', fontFamily: 'monospace',
+      this.add.text(bx, btnY, diff.label, {
+        fontSize: '20px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
       }).setOrigin(0.5);
 
       bg.on('pointerover', () => bg.setFillStyle(diff.color, 0.5));
