@@ -323,6 +323,10 @@ function createSettingsPanel(scene, cx, cy, els, onBack) {
 class MenuScene extends Phaser.Scene {
   constructor() { super('MenuScene'); }
 
+  preload() {
+    this.load.image('titleImg', '../asset/images/title.jpg');
+  }
+
   create() {
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
 
@@ -331,15 +335,21 @@ class MenuScene extends Phaser.Scene {
     MusicManager.updateScene(this);
     MusicManager.play();
 
-    this.add.text(cx, 120, 'WAVE SURVIVAL', {
+    this.add.text(cx, 80, 'WAVE SURVIVAL', {
       fontSize: '52px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(cx, 175, '[ Wide Mode ]', {
+    // 타이틀 이미지
+    const titleImg = this.add.image(cx, 190, 'titleImg').setOrigin(0.5);
+    const maxW = 360, maxH = 140;
+    const scale = Math.min(maxW / titleImg.width, maxH / titleImg.height);
+    titleImg.setScale(scale);
+
+    this.add.text(cx, 270, '[ Wide Mode ]', {
       fontSize: '18px', fill: '#44aaff', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    this.add.text(cx, 210, '난이도를 선택하세요', {
+    this.add.text(cx, 300, '난이도를 선택하세요', {
       fontSize: '20px', fill: '#aaaaaa', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
@@ -347,7 +357,7 @@ class MenuScene extends Phaser.Scene {
     this.diffButtons = [];
     keys.forEach((key, i) => {
       const diff = DIFFICULTY[key];
-      const y = 310 + i * 100;
+      const y = 380 + i * 90;
 
       const bg = this.add.rectangle(cx, y, 400, 72, diff.color, 0.25)
         .setStrokeStyle(2, diff.color)

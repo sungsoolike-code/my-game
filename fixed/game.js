@@ -55,21 +55,31 @@ const DIFFICULTY = {
 class MenuScene extends Phaser.Scene {
   constructor() { super('MenuScene'); }
 
+  preload() {
+    this.load.image('titleImg', '../asset/images/title.jpg');
+  }
+
   create() {
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
 
-    this.add.text(cx, 140, 'WAVE SURVIVAL', {
+    this.add.text(cx, 80, 'WAVE SURVIVAL', {
       fontSize: '52px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(cx, 200, '난이도를 선택하세요', {
+    // 타이틀 이미지
+    const titleImg = this.add.image(cx, 190, 'titleImg').setOrigin(0.5);
+    const maxW = 360, maxH = 140;
+    const scale = Math.min(maxW / titleImg.width, maxH / titleImg.height);
+    titleImg.setScale(scale);
+
+    this.add.text(cx, 290, '난이도를 선택하세요', {
       fontSize: '20px', fill: '#aaaaaa', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
     const keys = ['easy', 'normal', 'hard'];
     keys.forEach((key, i) => {
       const diff = DIFFICULTY[key];
-      const y = 300 + i * 100;
+      const y = 370 + i * 90;
 
       const bg = this.add.rectangle(cx, y, 400, 72, diff.color, 0.25)
         .setStrokeStyle(2, diff.color)
