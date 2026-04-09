@@ -340,10 +340,9 @@ class MenuScene extends Phaser.Scene {
   create() {
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
 
-    // 음악 시작
+    // 음악 초기화 (재생은 난이도 클릭 시 시작)
     MusicManager.init(this);
     MusicManager.updateScene(this);
-    MusicManager.play();
 
     // 타이틀 이미지 (화면 중앙)
     const addTitleImg = () => {
@@ -387,7 +386,10 @@ class MenuScene extends Phaser.Scene {
 
       bg.on('pointerover', () => bg.setFillStyle(diff.color, 0.5));
       bg.on('pointerout', () => bg.setFillStyle(diff.color, 0.25));
-      bg.on('pointerdown', () => this.scene.start('GameScene', { difficulty: key }));
+      bg.on('pointerdown', () => {
+        MusicManager.play();
+        this.scene.start('GameScene', { difficulty: key });
+      });
       this.diffButtons.push(bg);
     });
 
