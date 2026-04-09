@@ -412,6 +412,10 @@ class MenuScene extends Phaser.Scene {
 class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
+  preload() {
+    this.load.image('playerShip', '../asset/images/player_ship.png');
+  }
+
   init(data) {
     this.diffKey = data.difficulty || 'normal';
     this.diff = DIFFICULTY[this.diffKey];
@@ -523,7 +527,7 @@ class GameScene extends Phaser.Scene {
     outside.setDepth(0);
 
     // --- 플레이어 ---
-    this.player = this.add.rectangle(WORLD_W / 2, WORLD_H / 2, 28, 28, 0x4488ff);
+    this.player = this.add.image(WORLD_W / 2, WORLD_H / 2, 'playerShip').setDisplaySize(48, 48);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
 
