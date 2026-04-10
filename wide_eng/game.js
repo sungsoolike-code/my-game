@@ -190,12 +190,17 @@ const MusicManager = {
     if (!SETTINGS.musicOn || !this._scene) return;
     if (this._currentSound && this._currentSound.isPlaying) return;
     const snd = this._scene.sound;
-    if (snd.locked) {
-      snd.once('unlocked', () => { this._playNext(); });
+    const ctx = snd.context;
+    const doPlay = () => {
+      if (!this._currentSound || !this._currentSound.isPlaying) this._playNext();
+    };
+    // suspended 체크를 먼저: itch.io iframe에서 locked와 suspended가 동시에 true일 수 있음
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().then(doPlay);
       return;
     }
-    if (snd.context && snd.context.state === 'suspended') {
-      snd.context.resume().then(() => { this._playNext(); });
+    if (snd.locked) {
+      snd.once('unlocked', doPlay);
       return;
     }
     this._playNext();
@@ -457,6 +462,12 @@ class GameScene extends Phaser.Scene {
     // 음악 씬 업데이트
     MusicManager.updateScene(this);
     this.time.delayedCall(100, () => MusicManager.play());
+    // itch.io fallback: 첫 키 입력 시 재시도 (AudioContext unlock 보장)
+    this.input.keyboard.once('keydown', () => {
+      if (!MusicManager._currentSound || !MusicManager._currentSound.isPlaying) {
+        MusicManager.play();
+      }
+    });
 
     // --- 상태 ---
     this.hp = d.playerHp;
