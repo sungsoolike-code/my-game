@@ -360,6 +360,8 @@ class MenuScene extends Phaser.Scene {
       bg.on('pointerdown', () => {
         const ctx = this.sound.context;
         if (ctx && ctx.state === 'suspended') ctx.resume();
+        MusicManager.init();
+        MusicManager.play();   // 클릭 이벤트 내부에서 직접 호출 → user gesture 유효
         this.scene.start('GameScene', { difficulty: key });
       });
       this.diffButtons.push(bg);
@@ -417,9 +419,7 @@ class GameScene extends Phaser.Scene {
   create() {
     const d = this.diff;
 
-    // 음악 시작 (HTML5 Audio — itch.io iframe 호환)
-    this.time.delayedCall(100, () => MusicManager.play());
-    // fallback: 첫 키 입력 시 재시도
+    // fallback: 키 입력 시 음악 재시도 (MenuScene에서 이미 시작됨)
     this.input.keyboard.once('keydown', () => MusicManager.play());
 
     // --- 상태 ---
