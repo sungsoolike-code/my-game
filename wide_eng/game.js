@@ -188,8 +188,16 @@ const MusicManager = {
 
   play() {
     if (!SETTINGS.musicOn || !this._scene) return;
-    if (this._scene.sound.context && this._scene.sound.context.state === "suspended") { this._scene.sound.context.resume(); }
     if (this._currentSound && this._currentSound.isPlaying) return;
+    const snd = this._scene.sound;
+    if (snd.locked) {
+      snd.once('unlocked', () => { this._playNext(); });
+      return;
+    }
+    if (snd.context && snd.context.state === 'suspended') {
+      snd.context.resume().then(() => { this._playNext(); });
+      return;
+    }
     this._playNext();
   },
 
