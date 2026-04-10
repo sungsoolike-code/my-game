@@ -665,6 +665,7 @@ class GameScene extends Phaser.Scene {
     const barW = 200, barH = 18;
     this.hpBarBg = this.add.rectangle(120, 24, barW, barH, 0x333333).setScrollFactor(0).setDepth(100);
     this.hpBar = this.add.rectangle(120, 24, barW, barH, 0x44dd44).setScrollFactor(0).setDepth(101);
+    this.hpText = this.add.text(225, 15, '', { fontSize: '13px', fill: '#cccccc', fontFamily: 'monospace' }).setScrollFactor(0).setDepth(102);
 
     const style = { fontSize: '16px', fill: '#fff', fontFamily: 'monospace' };
     this.waveText = this.add.text(VIEW_W - 10, 10, '', style).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
@@ -688,6 +689,7 @@ class GameScene extends Phaser.Scene {
     this.hpBar.x = 20 + this.hpBar.width / 2;
     this.hpBar.fillColor = hpRatio > 0.5 ? 0x44dd44 : hpRatio > 0.25 ? 0xdddd44 : 0xdd4444;
     this.hpBarBg.x = 120;
+    this.hpText.setText(`${Math.max(0, Math.floor(this.hp))}/${this.maxHp}${this.invincible ? ' ★' : ''}`);
 
     const mm = String(Math.floor(this.elapsed / 60)).padStart(2, '0');
     const ss = String(this.elapsed % 60).padStart(2, '0');
@@ -1159,7 +1161,7 @@ class GameScene extends Phaser.Scene {
   }
 
   onEnemyHitPlayer(player, enemy) {
-    if (!enemy.active) return;
+    if (!enemy.active || this.paused) return;
     if (this.invincible) {
       // 무적 상태: 적을 파괴하고 킬 카운트
       SFX.enemyDeath();
@@ -1168,7 +1170,9 @@ class GameScene extends Phaser.Scene {
       enemy.destroy();
       return;
     }
-    this.hp -= enemy.getData('damage');
+    const dmg = enemy.getData('damage') || 0;
+    this.hp -= dmg;
+    if (!isFinite(this.hp) || isNaN(this.hp)) this.hp = 0; // NaN 방지
     enemy.destroy();
     SFX.playerHit();
     this.cameras.main.shake(100, 0.008);
