@@ -169,102 +169,67 @@ const SFX = {
 };
 
 // ============================================================
-//  MusicManager — 음악 로테이션 관리
+//  MusicManager — HTML5 Audio 기반 음악 로테이션
+//  (Phaser WebAudio는 itch.io iframe에서 unlock 안 되므로 직접 구현)
 // ============================================================
 const MusicManager = {
-  _scene: null,
-  _tracks: [],
+  _audio: null,
   _currentIndex: -1,
-  _currentSound: null,
   _shuffled: [],
   _loaded: false,
 
-  init(scene) {
-    this._scene = scene;
+  init() {
     if (this._loaded) return;
     this._loaded = true;
     this._shuffled = [...MUSIC_TRACKS].sort(() => Math.random() - 0.5);
   },
 
   play() {
-    if (!SETTINGS.musicOn || !this._scene) return;
-    if (this._currentSound && this._currentSound.isPlaying) return;
-    const snd = this._scene.sound;
-    const ctx = snd.context;
-    const doPlay = () => {
-      if (!this._currentSound || !this._currentSound.isPlaying) this._playNext();
-    };
-    // suspended 체크를 먼저: itch.io iframe에서 locked와 suspended가 동시에 true일 수 있음
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume().then(doPlay);
-      return;
-    }
-    if (snd.locked) {
-      snd.once('unlocked', doPlay);
-      return;
-    }
+    if (!SETTINGS.musicOn) return;
+    if (this._audio && !this._audio.paused && !this._audio.ended) return;
     this._playNext();
   },
 
   _playNext() {
     if (!SETTINGS.musicOn) return;
     this._currentIndex = (this._currentIndex + 1) % this._shuffled.length;
-    const key = 'music_' + this._currentIndex;
-    const scene = this._scene;
 
-    if (!scene.cache.audio.exists(key)) {
-      scene.load.audio(key, this._shuffled[this._currentIndex]);
-      scene.load.once('complete', () => {
-        this._startTrack(scene, key);
-      });
-      scene.load.start();
-    } else {
-      this._startTrack(scene, key);
+    if (this._audio) {
+      this._audio.pause();
+      this._audio.removeAttribute('src');
+      this._audio.load();
     }
-  },
 
-  _startTrack(scene, key) {
-    if (this._currentSound) {
-      this._currentSound.stop();
-      this._currentSound.destroy();
-    }
-    this._currentSound = scene.sound.add(key, { volume: 0.3 });
-    this._currentSound.once('complete', () => {
-      this._playNext();
+    this._audio = new Audio(this._shuffled[this._currentIndex]);
+    this._audio.volume = 0.3;
+    this._audio.addEventListener('ended', () => this._playNext());
+    this._audio.addEventListener('error', () => {
+      // 로드 실패 시 다음 트랙 시도
+      setTimeout(() => this._playNext(), 200);
     });
-    if (SETTINGS.musicOn) {
-      this._currentSound.play();
-    }
+
+    const p = this._audio.play();
+    if (p && p.catch) p.catch(() => {});
   },
 
   stop() {
-    if (this._currentSound && this._currentSound.isPlaying) {
-      this._currentSound.stop();
+    if (this._audio) {
+      this._audio.pause();
+      this._audio.currentTime = 0;
     }
   },
 
   toggle(on) {
     SETTINGS.musicOn = on;
-    if (on) {
-      this.play();
-    } else {
-      this.stop();
-    }
+    if (on) this.play();
+    else this.stop();
   },
 
   skip() {
-    if (!this._scene) return;
-    if (this._currentSound) {
-      this._currentSound.stop();
-      this._currentSound.destroy();
-      this._currentSound = null;
-    }
     this._playNext();
   },
 
-  updateScene(scene) {
-    this._scene = scene;
-  },
+  updateScene() {},  // HTML5 Audio는 씬 불필요 (호환용)
 };
 
 // ============================================================
@@ -356,8 +321,7 @@ class MenuScene extends Phaser.Scene {
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
 
     // 음악 초기화 (재생은 난이도 클릭 시 시작)
-    MusicManager.init(this);
-    MusicManager.updateScene(this);
+    MusicManager.init();
 
     // 타이틀 이미지 (화면 중앙)
     const addTitleImg = () => {
@@ -459,15 +423,10 @@ class GameScene extends Phaser.Scene {
   create() {
     const d = this.diff;
 
-    // 음악 씬 업데이트
-    MusicManager.updateScene(this);
+    // 음악 시작 (HTML5 Audio — itch.io iframe 호환)
     this.time.delayedCall(100, () => MusicManager.play());
-    // itch.io fallback: 첫 키 입력 시 재시도 (AudioContext unlock 보장)
-    this.input.keyboard.once('keydown', () => {
-      if (!MusicManager._currentSound || !MusicManager._currentSound.isPlaying) {
-        MusicManager.play();
-      }
-    });
+    // fallback: 첫 키 입력 시 재시도
+    this.input.keyboard.once('keydown', () => MusicManager.play());
 
     // --- 상태 ---
     this.hp = d.playerHp;
