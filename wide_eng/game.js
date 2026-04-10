@@ -397,7 +397,8 @@ class MenuScene extends Phaser.Scene {
       bg.on('pointerover', () => bg.setFillStyle(diff.color, 0.5));
       bg.on('pointerout', () => bg.setFillStyle(diff.color, 0.25));
       bg.on('pointerdown', () => {
-        MusicManager.play();
+        const ctx = this.sound.context;
+        if (ctx && ctx.state === 'suspended') ctx.resume();
         this.scene.start('GameScene', { difficulty: key });
       });
       this.diffButtons.push(bg);
@@ -455,7 +456,7 @@ class GameScene extends Phaser.Scene {
 
     // 음악 씬 업데이트
     MusicManager.updateScene(this);
-    MusicManager.play();
+    this.time.delayedCall(100, () => MusicManager.play());
 
     // --- 상태 ---
     this.hp = d.playerHp;
