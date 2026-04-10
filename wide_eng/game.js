@@ -312,8 +312,7 @@ class MenuScene extends Phaser.Scene {
 
   preload() {
     if (!this.textures.exists('titleImg')) {
-      this.textures.once('addtexture-titleImg', () => {});
-      this.textures.addBase64('titleImg', TITLE_IMG_BASE64);
+      this.load.image('titleImg', TITLE_IMG_BASE64);
     }
   }
 
@@ -324,17 +323,10 @@ class MenuScene extends Phaser.Scene {
     MusicManager.init();
 
     // 타이틀 이미지 (화면 중앙)
-    const addTitleImg = () => {
-      const titleImg = this.add.image(cx, cy - 60, 'titleImg').setOrigin(0.5);
-      const maxW = 700, maxH = 400;
-      const scale = Math.min(maxW / titleImg.width, maxH / titleImg.height);
-      titleImg.setScale(scale);
-    };
-    if (this.textures.exists('titleImg')) {
-      addTitleImg();
-    } else {
-      this.textures.once('addtexture-titleImg', addTitleImg);
-    }
+    const titleImg = this.add.image(cx, cy - 60, 'titleImg').setOrigin(0.5);
+    const maxW = 700, maxH = 400;
+    const scale = Math.min(maxW / titleImg.width, maxH / titleImg.height);
+    titleImg.setScale(scale);
 
     this.add.text(cx, 60, 'WAVE SURVIVAL', {
       fontSize: '52px', fill: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
@@ -412,7 +404,9 @@ class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   preload() {
-    if (!this.textures.exists('playerShip')) { this.textures.addBase64('playerShip', PLAYER_SHIP_BASE64); }
+    if (!this.textures.exists('playerShip')) {
+      this.load.image('playerShip', PLAYER_SHIP_BASE64);
+    }
   }
 
   init(data) {
@@ -527,7 +521,7 @@ class GameScene extends Phaser.Scene {
     outside.setDepth(0);
 
     // --- 플레이어 ---
-    this.player = this.textures.exists('playerShip') ? this.add.image(WORLD_W / 2, WORLD_H / 2, 'playerShip').setDisplaySize(38, 38) : this.add.rectangle(WORLD_W / 2, WORLD_H / 2, 38, 38, 0x4488ff); if (!this.textures.exists('playerShip')) { this.textures.once('addtexture-playerShip', () => { const x = this.player.x, y = this.player.y; this.player.destroy(); this.player = this.add.image(x, y, 'playerShip').setDisplaySize(38, 38); this.physics.add.existing(this.player); this.player.body.setCollideWorldBounds(true); }); }
+    this.player = this.add.image(WORLD_W / 2, WORLD_H / 2, 'playerShip').setDisplaySize(38, 38);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
 
@@ -1320,7 +1314,7 @@ class GameScene extends Phaser.Scene {
   activateArmor() {
     this.invincible = true;
     // 플레이어 시각 효과: 파란 쉴드 느낌
-    this.player.setFillStyle(0x44ffff);
+    this.player.setTint(0x44ffff);
     this.player.setAlpha(0.8);
     this.showBuffText('ARMOR ACTIVE! (2s)');
 
@@ -1336,7 +1330,7 @@ class GameScene extends Phaser.Scene {
     // 2초 후 무적 해제
     this.time.delayedCall(2000, () => {
       this.invincible = false;
-      this.player.setFillStyle(0x4488ff);
+      this.player.clearTint();
       this.player.setAlpha(1);
     });
   }
